@@ -1,0 +1,53 @@
+version: "1.0.0"
+pipeline:
+  seed: 42
+  enable_profiling: true
+
+quality:
+  min_laplacian_var: 100.0
+  max_glare_ratio: 0.15
+  max_shadow_ratio: 0.35
+  glare_l_physical_thresh: 96.0       # Physical CIELAB L* [0, 100]
+  shadow_l_physical_thresh: 10.0      # Physical CIELAB L* [0, 100]
+  glare_sat_max: 30
+
+preprocessing:
+  clahe_clip_limit: 2.0
+  clahe_tile_grid_size: [8, 8]
+
+leaf_segmentation:
+  alpha_b_weight: 0.5
+  morph_close_kernel: 5
+  min_leaf_area_ratio: 0.05
+
+lesion_segmentation:
+  mad_scale_factor: 1.4826
+  chroma_threshold_multiplier: 2.5
+  morph_open_kernel: 3
+  min_lesion_component_px: 5
+
+severity:
+  confidence_weights:
+    w_quality: 0.30
+    w_segmentation: 0.30
+    w_threshold: 0.20
+    w_robustness: 0.20
+  boundary_beta: 0.05
+
+robustness:
+  epsilon: 1e-6
+  fri_weights:
+    w_robustness: 0.40
+    w_segmentation: 0.30
+    w_latency: 0.20
+    w_memory: 0.10
+  latency_baseline_ms: 50.0
+  memory_baseline_mb: 200.0
+
+progression:
+  stable_max_pct_per_day: 0.5
+  emerging_max_pct_per_day: 1.5
+  moderate_max_pct_per_day: 3.5
+
+storage:
+  sqlite_db_path: "data/temporal_db/field_history.db"

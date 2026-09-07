@@ -1,0 +1,93 @@
+# ==========================================
+# 1. Virtual Environments & Python Caches
+# ==========================================
+# Virtual environments
+venv/
+env/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Byte-compiled / Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Packaging & Distribution
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+
+# ==========================================
+# 2. Datasets & Heavy Media
+# ==========================================
+# Bulk raw vision datasets (keep directory hierarchy via .gitkeep)
+data/raw/*
+!data/raw/.gitkeep
+
+# Evaluation archives and compressed dataset downloads
+*.zip
+*.tar.gz
+*.tar
+*.gz
+*.bz2
+*.7z
+
+# Preserve lightweight committed sample test images
+!samples/
+!samples/**
+
+# ==========================================
+# 3. Databases & Runtime Persistence
+# ==========================================
+# Active SQLite progression database files (keep directory hierarchy via .gitkeep)
+data/temporal_db/*.db
+*.sqlite3
+*.sqlite
+!data/temporal_db/.gitkeep
+
+# ==========================================
+# 4. Testing, Coverage & Benchmarking Runs
+# ==========================================
+# Pytest execution cache
+.pytest_cache/
+
+# Code coverage reports
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.hypothesis/
+
+# Ephemeral run & batch output artifacts
+batch_outputs/
+outputs/
+
+# Temporary benchmark plots & generated evaluation figures
+results/plots/*.png
+!results/plots/.gitkeep
+
+# ==========================================
+# 5. IDE, OS & System Metadata
+# ==========================================
+# IDEs and editor configurations
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Operating system files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+
+# Streamlit runtime & dashboard caches
+.streamlit/
