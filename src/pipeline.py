@@ -266,6 +266,18 @@ class FieldSightPipeline:
                 original_image_path=original_image_path
             )
 
+        # Check for unsegmented full-canvas warning flag (> 0.98 total image area)
+        h_orig, w_orig = bgr_image.shape[:2]
+        if leaf_area_px > 0.98 * (h_orig * w_orig):
+            warn = ProcessingError(
+                code=ProcessingStatus.SEGMENTATION_FAILURE,
+                message=f"Canopy mask spans {leaf_area_px}/{h_orig*w_orig} px (>98% of canvas), indicating potentially unsegmented background.",
+                recoverable=True,
+                stage="LEAF_SEGMENTATION"
+            )
+            errors.append(warn)
+            logger.warning(warn.message)
+
         # 5. Lesion Segmentation
         with self.profiler.profile_stage("LESION_SEGMENTATION"):
             segmentation = self.lesion_segmenter.segment_lesions(lab_norm, leaf_mask)

@@ -1,18 +1,29 @@
 # ==========================================
-# 1. Virtual Environments & Python Caches
+# 1. Python & Virtual Environments
 # ==========================================
 # Virtual environments
 venv/
-env/
+venv
+venv*/
 .venv/
+.venv
+.venv*/
+env/
+env*/
 ENV/
 env.bak/
 venv.bak/
+conda/
+.conda/
 
 # Byte-compiled / Python caches
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
+*.dylib
+*.pyd
+*.dll
 
 # Packaging & Distribution
 *.egg-info/
@@ -20,37 +31,19 @@ __pycache__/
 dist/
 build/
 *.egg
+*.whl
+sdist/
+develop-eggs/
+downloads/
+eggs/
+parts/
+var/
+wheels/
+*.manifest
+*.spec
 
 # ==========================================
-# 2. Datasets & Heavy Media
-# ==========================================
-# Bulk raw vision datasets (keep directory hierarchy via .gitkeep)
-data/raw/*
-!data/raw/.gitkeep
-
-# Evaluation archives and compressed dataset downloads
-*.zip
-*.tar.gz
-*.tar
-*.gz
-*.bz2
-*.7z
-
-# Preserve lightweight committed sample test images
-!samples/
-!samples/**
-
-# ==========================================
-# 3. Databases & Runtime Persistence
-# ==========================================
-# Active SQLite progression database files (keep directory hierarchy via .gitkeep)
-data/temporal_db/*.db
-*.sqlite3
-*.sqlite
-!data/temporal_db/.gitkeep
-
-# ==========================================
-# 4. Testing, Coverage & Benchmarking Runs
+# 2. Testing, Coverage, Linters & Typing
 # ==========================================
 # Pytest execution cache
 .pytest_cache/
@@ -60,34 +53,153 @@ data/temporal_db/*.db
 .coverage.*
 htmlcov/
 coverage.xml
+coverage_html/
+*.cover
+nosetests.xml
+
+# Hypothesis testing
 .hypothesis/
 
+# Tox and Nox environments
+.tox/
+.nox/
+
+# Linters and type checker caches
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.pytype/
+.dmypy.json
+dmypy.json
+
+# ==========================================
+# 3. Datasets, Heavy Media & Model Weights
+# ==========================================
+# Bulk raw vision datasets (keep directory hierarchy via .gitkeep)
+data/raw/*
+!data/raw/.gitkeep
+
+# Evaluation archives & compressed dataset packages
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.gz
+*.bz2
+*.xz
+*.7z
+*.rar
+
+# Model checkpoints & serialized weights
+*.pt
+*.pth
+*.onnx
+*.tflite
+*.h5
+*.pkl
+*.pickle
+*.joblib
+*.ckpt
+*.safetensors
+*.engine
+*.weights
+
+# Preserve lightweight committed sample test images
+!samples/
+!samples/**
+
+# ==========================================
+# 4. Databases, Runtime Persistence & Logs
+# ==========================================
+# Active SQLite progression database files (keep directory hierarchy via .gitkeep)
+data/temporal_db/*.db
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+!data/temporal_db/.gitkeep
+
+# Application & execution logs
+*.log
+logs/
+
+# ==========================================
+# 5. Output Artifacts & Benchmark Plots
+# ==========================================
 # Ephemeral run & batch output artifacts
 batch_outputs/
 outputs/
+runs/
 
-# Temporary benchmark plots & generated evaluation figures
+# Generated benchmark plots & figures (keep directory via .gitkeep)
 results/plots/*.png
+results/plots/*.jpg
+results/plots/*.jpeg
+results/plots/*.svg
+results/plots/*.pdf
 !results/plots/.gitkeep
 
 # ==========================================
-# 5. IDE, OS & System Metadata
+# 6. Streamlit, Dashboards & Jupyter Notebooks
+# ==========================================
+# Streamlit credentials & secrets (track config.toml for custom UI themes)
+.streamlit/secrets.toml
+.streamlit/credentials.toml
+
+# Jupyter / IPython checkpoints & caches
+.ipynb_checkpoints/
+*-checkpoint.ipynb
+.jupyter/
+
+# ==========================================
+# 7. Environment Variables & Secrets
+# ==========================================
+.env
+.env.*
+!.env.example
+secrets.yaml
+secrets.json
+*.pem
+*.key
+*.cert
+
+# ==========================================
+# 8. IDE, OS & System Metadata
 # ==========================================
 # IDEs and editor configurations
 .vscode/
 .idea/
+*.iml
+*.iws
+*.ipr
+*.sublime-project
+*.sublime-workspace
+.project
+.pydevproject
+.settings/
 *.swp
 *.swo
 *~
+.#*
+#*#
 
 # Operating system files
+# macOS
 .DS_Store
 .DS_Store?
 ._*
 .Spotlight-V100
 .Trashes
+
+# Windows
 Thumbs.db
 ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
 
-# Streamlit runtime & dashboard caches
-.streamlit/
+# Linux
+.directory
+.fuse_hidden*
+.Trash-*

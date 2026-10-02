@@ -1,0 +1,18 @@
+\begin{table*}[htbp]
+\centering
+\caption{Quantitative Benchmark: FieldSight-Lite vs. Baselines under Clean and Severe Perturbed Lighting Regimes.}
+\label{tab:fieldsight_benchmarks}
+\small
+\begin{tabular}{lcccccc|c}
+\hline
+\textbf{Method} & \multicolumn{3}{c}{\textbf{Clean Lighting}} & \multicolumn{3}{c}{\textbf{Perturbed Lighting (Stress Test)}} & \textbf{Drift} \\
+ & \textbf{Leaf IoU} & \textbf{Lesion IoU} & \textbf{Sev MAE} & \textbf{Leaf IoU} & \textbf{Lesion IoU} & \textbf{Sev MAE} & \textbf{$\Delta$MAE} \\
+\hline
+\textbf{Proposed (FieldSight-Lite)} & \textbf{83.3\%} & \textbf{17.7\%} & \textbf{32.59\%} & \textbf{78.2\%} & \textbf{17.2\%} & \textbf{32.11\%} & \textbf{-0.48\%} \\
+Baseline 1: RGB Naive & 73.3\% & 0.4\% & 31.77\% & 60.5\% & 0.3\% & 33.81\% & 2.04\% \\
+Baseline 2: HSV Color & 89.5\% & 0.0\% & 37.14\% & 81.7\% & 0.0\% & 37.14\% & -0.00\% \\
+Baseline 3: Global Otsu & 43.7\% & 10.3\% & 44.21\% & 38.2\% & 9.6\% & 46.42\% & 2.21\% \\
+Baseline 4: K-Means (K=3) & 32.7\% & 6.1\% & 46.85\% & 31.6\% & 7.1\% & 46.84\% & -0.01\% \\
+\hline
+\end{tabular}
+\end{table*}

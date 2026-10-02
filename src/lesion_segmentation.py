@@ -82,16 +82,51 @@ class LesionSegmenter:
         a_leaf = a_chan[leaf_indices]
         b_leaf = b_chan[leaf_indices]
 
-        # 2. Pass 1: Initial Medians and MADs
-        mu_a_tilde = float(np.median(a_leaf))
-        mad_a_init = float(self.mad_scale_factor * np.median(np.abs(a_leaf - mu_a_tilde)))
+        # 2. Pass 1: Biological Chlorophyll Reference Anchoring
+        global_med_a = float(np.median(a_leaf))
+        std_a = float(np.std(a_leaf))
+        q25_a = float(np.percentile(a_leaf, 25))
+        q10_a = float(np.percentile(a_leaf, 10))
+        q15_a = float(np.percentile(a_leaf, 15))
 
-        mu_b_tilde = float(np.median(b_leaf))
-        mad_b_init = float(self.mad_scale_factor * np.median(np.abs(b_leaf - mu_b_tilde)))
+        # Dynamic Anchoring Guard:
+        # Only activate chlorophyll quantile anchoring if the leaf exhibits high variance (std_a > 6.0)
+        # or widespread chlorophyll degradation (q25_a > 115.0 or global_med_a > 118.0).
+        # If the leaf is uniformly green (std_a < 4.0 and global_med_a <= 118.0), use the standard global median to prevent over-segmentation.
+        is_high_variance = (std_a > 6.0)
+        is_chlorosis_shift = (q25_a > 115.0 or global_med_a > 118.0)
+
+        if is_high_variance or is_chlorosis_shift:
+            if q10_a > 122.0:
+                # Canopy is nearly completely chlorotic/necrotic with no surviving green pixels; clamp to standard healthy chlorophyll prior
+                mu_a_tilde = 112.0
+                mu_b_tilde = 145.0
+                mad_a_init = 6.0
+                mad_b_init = 8.0
+            else:
+                # Anchor strictly to lowest 10th-to-15th percentile of a* (the surviving green veins)
+                anchor_idx = a_leaf <= q15_a
+                if np.count_nonzero(anchor_idx) > 10:
+                    a_anchor = a_leaf[anchor_idx]
+                    b_anchor = b_leaf[anchor_idx]
+                    mu_a_tilde = float(np.median(a_anchor))
+                    mad_a_init = float(self.mad_scale_factor * np.median(np.abs(a_anchor - mu_a_tilde)))
+                    mu_b_tilde = float(np.median(b_anchor))
+                    mad_b_init = float(self.mad_scale_factor * np.median(np.abs(b_anchor - mu_b_tilde)))
+                else:
+                    mu_a_tilde = 112.0
+                    mu_b_tilde = 145.0
+                    mad_a_init = 6.0
+                    mad_b_init = 8.0
+        else:
+            mu_a_tilde = global_med_a
+            mad_a_init = float(self.mad_scale_factor * np.median(np.abs(a_leaf - mu_a_tilde)))
+            mu_b_tilde = float(np.median(b_leaf))
+            mad_b_init = float(self.mad_scale_factor * np.median(np.abs(b_leaf - mu_b_tilde)))
 
         # In discrete 8-bit CIELAB space, enforce realistic biological floor for intra-leaf variation
-        mad_a_init = max(mad_a_init, 2.0)
-        mad_b_init = max(mad_b_init, 2.0)
+        mad_a_init = max(mad_a_init, 2.5)
+        mad_b_init = max(mad_b_init, 2.5)
 
         # 3. Isolate healthy inlier reference mask H_ref (Pass 1 inliers)
         # Healthy plant tissue is characterized by lower a* (greener) and moderate b*
@@ -112,9 +147,9 @@ class LesionSegmenter:
             mu_b = mu_b_tilde
             mad_b = mad_b_init
 
-        # Floor MAD to account for discrete color quantization
-        mad_a = max(mad_a, 2.0)
-        mad_b = max(mad_b, 2.0)
+        # Floor MAD to account for discrete color quantization and natural intra-foliar shade variation
+        mad_a = max(mad_a, 2.5)
+        mad_b = max(mad_b, 2.5)
 
         # 5. Chromatic Distance Score D_chroma(x, y)
         diff_a = (a_chan - mu_a) / (mad_a + self.epsilon)
@@ -122,21 +157,54 @@ class LesionSegmenter:
         d_chroma = np.sqrt(diff_a ** 2 + diff_b ** 2)
 
         # 6. Candidate Lesion Mask:
-        # Lesion pixels require D_chroma >= k_thresh AND a* > mu_a (loss of green chlorophyll)
+        # Detect lesions where pixels deviate positively from the anchored green baseline:
+        # - Necrosis/Chlorosis: elevated a* relative to green anchor (a* - mu_a > 2.0 * MAD_a)
+        # - Yellowing/Bronzing: elevated b* drift (b* - mu_b > 2.2 * MAD_b) and (a* > mu_a + 0.5 * MAD_a)
         is_anomalous = (d_chroma >= self.chroma_threshold_multiplier)
-        is_necrotic = (a_chan > (mu_a + 0.8 * mad_a))
-        is_chlorotic = (a_chan > mu_a) & ((b_chan - mu_b) > (2.5 * mad_b))
+        is_necrotic = (a_chan > (mu_a + 2.0 * mad_a))
+        is_chlorotic = ((b_chan - mu_b) > (2.2 * mad_b)) & (a_chan > (mu_a + 0.5 * mad_a))
         is_pathological_shift = is_necrotic | is_chlorotic
+
+        # 7. Canopy Border Erosion Buffer:
+        # Natural leaf serrations and background edge gradients create false chromatic anomalies.
+        # Erode leaf_mask by a 3x3 kernel. Pixels within the 2-3px outer boundary are suppressed
+        # unless they belong to an anomaly cluster larger than 50 pixels.
+        erode_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        leaf_mask_eroded = cv2.erode(leaf_mask, erode_kernel, iterations=1)
 
         raw_lesion_mask = (is_anomalous & is_pathological_shift & (leaf_mask == 255)).astype(np.uint8) * 255
 
-        # 7. Morphological cleanup
+        # 8. Morphological cleanup and minimum anomaly cluster filtering
         opened_mask = apply_morphological_open(raw_lesion_mask, kernel_size=self.morph_open_kernel)
-        filtered_mask = filter_small_components(opened_mask, min_area_px=self.min_lesion_component_px)
+        
+        # Filter small noise specs (< 30 pixels or configured min_lesion_component_px)
+        effective_min_px = max(self.min_lesion_component_px, 30)
+        filtered_mask = filter_small_components(opened_mask, min_area_px=effective_min_px)
 
-        # 8. Enforce strict mathematical invariant: M_lesion subset of M_leaf
+        # Suppress boundary artifacts: only retain border pixels if part of larger anomaly cluster (> 50px)
+        # Components fully inside leaf_mask_eroded are safe; for components touching border, keep only if area >= 50px
+        if np.count_nonzero(filtered_mask) > 0:
+            num_labels, labels, stats, _ = cv2.connectedComponentsWithStats((filtered_mask > 0).astype(np.uint8), connectivity=8)
+            cleaned_lesion = np.zeros_like(filtered_mask)
+            for lbl in range(1, num_labels):
+                area = stats[lbl, cv2.CC_STAT_AREA]
+                comp_mask = (labels == lbl)
+                # If component is smaller than 50px and intersects the outer boundary (not strictly in eroded mask), drop it
+                touches_outer_edge = np.any(comp_mask & (leaf_mask_eroded == 0))
+                if touches_outer_edge and area < 50:
+                    continue
+                cleaned_lesion[comp_mask] = 255
+            filtered_mask = cleaned_lesion
+
+        # 9. Enforce strict mathematical invariant: M_lesion subset of M_leaf
         lesion_mask = cv2.bitwise_and(filtered_mask, leaf_mask)
         lesion_area_px = int(np.count_nonzero(lesion_mask == 255))
+
+        # 10. Low-variance healthy leaf guard:
+        # On healthy leaves with low chromatic variance (std_a < 4.0), suppress subtle false-positive noise (< 50 px)
+        if std_a < 4.0 and lesion_area_px < 50:
+            lesion_mask = np.zeros((h, w), dtype=np.uint8)
+            lesion_area_px = 0
 
         return SegmentationResult(
             leaf_mask=leaf_mask,

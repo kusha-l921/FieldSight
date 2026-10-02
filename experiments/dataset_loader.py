@@ -199,3 +199,86 @@ def create_synthetic_benchmark_dataset(
             ))
             idx += 1
     return samples
+
+
+def load_evaluation_dataset(
+    images_dir: str = "data/evaluation/images",
+    masks_dir: str = "data/evaluation/masks"
+) -> List[BenchmarkSample]:
+    """
+    Loads real evaluation dataset consisting of annotated image-mask pairs.
+    Looks for matching <basename>_lesion_mask.png in masks_dir.
+    """
+    exts = ("*.jpg", "*.jpeg", "*.png", "*.JPG", "*.JPEG", "*.PNG")
+    img_paths = []
+    for ext in exts:
+        img_paths.extend(glob.glob(os.path.join(images_dir, ext)))
+    img_paths = sorted(list(set(img_paths)))
+
+    samples: List[BenchmarkSample] = []
+    for img_path in img_paths:
+        base_name = os.path.splitext(os.path.basename(img_path))[0]
+        img_bgr = cv2.imread(img_path)
+        if img_bgr is None:
+            continue
+
+        # Look for lesion mask candidates
+        lesion_mask_path = None
+        for cand in [
+            os.path.join(masks_dir, f"{base_name}_lesion_mask.png"),
+            os.path.join(masks_dir, f"{base_name}_lesion.png"),
+            os.path.join(masks_dir, f"{base_name}.png"),
+        ]:
+            if os.path.exists(cand):
+                lesion_mask_path = cand
+                break
+
+        # Look for leaf mask candidates
+        leaf_mask_path = None
+        for cand in [
+            os.path.join(masks_dir, f"{base_name}_leaf_mask.png"),
+            os.path.join(masks_dir, f"{base_name}_leaf.png"),
+        ]:
+            if os.path.exists(cand):
+                leaf_mask_path = cand
+                break
+
+        gt_lesion_mask = None
+        if lesion_mask_path is not None:
+            m = cv2.imread(lesion_mask_path, cv2.IMREAD_GRAYSCALE)
+            if m is not None:
+                gt_lesion_mask = (m > 127).astype(np.uint8) * 255
+
+        gt_leaf_mask = None
+        if leaf_mask_path is not None:
+            m = cv2.imread(leaf_mask_path, cv2.IMREAD_GRAYSCALE)
+            if m is not None:
+                gt_leaf_mask = (m > 127).astype(np.uint8) * 255
+        elif gt_lesion_mask is not None:
+            from src.leaf_segmentation import LeafSegmenter
+            seg = LeafSegmenter()
+            l_mask, l_area, is_valid = seg.segment_leaf(img_bgr)
+            gt_leaf_mask = l_mask if (is_valid and l_area > 0) else np.ones((img_bgr.shape[0], img_bgr.shape[1]), dtype=np.uint8) * 255
+
+        gt_severity_pct = None
+        if gt_leaf_mask is not None and gt_lesion_mask is not None:
+            leaf_area = np.count_nonzero(gt_leaf_mask == 255)
+            lesion_area = np.count_nonzero(gt_lesion_mask == 255)
+            gt_severity_pct = float((lesion_area / max(leaf_area, 1)) * 100.0)
+
+        plant_id = base_name.split("___")[0] if "___" in base_name else "PLANT_REAL"
+        leaf_id = base_name.split("___")[-1] if "___" in base_name else base_name
+
+        samples.append(BenchmarkSample(
+            sample_id=base_name,
+            plant_id=plant_id,
+            leaf_id=leaf_id,
+            image_bgr=img_bgr,
+            gt_leaf_mask=gt_leaf_mask,
+            gt_lesion_mask=gt_lesion_mask,
+            gt_severity_pct=gt_severity_pct,
+            metadata={"source_image": img_path, "source_mask": str(lesion_mask_path)}
+        ))
+
+    return samples
+

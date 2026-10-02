@@ -13,25 +13,25 @@ import numpy as np
 def fill_holes(binary_mask: np.ndarray) -> np.ndarray:
     """
     Fills internal holes within foreground objects in a binary mask {0, 255}.
-    Uses contour-based flood fill to preserve exterior boundary geometry.
+    Uses contour hierarchy and safe boundary drawing to preserve exterior geometry
+    without leaking to canvas boundaries when mask touches the border.
     """
     if binary_mask is None or binary_mask.size == 0:
         return binary_mask
 
-    mask = binary_mask.copy().astype(np.uint8)
-    h, w = mask.shape[:2]
-    flood_fill_mask = np.zeros((h + 2, w + 2), dtype=np.uint8)
-    
-    # Floodfill from point (0, 0)
-    flood_filled = mask.copy()
-    cv2.floodFill(flood_filled, flood_fill_mask, (0, 0), 255)
-    
-    # Invert floodfilled image
-    inverted = cv2.bitwise_not(flood_filled)
-    
-    # Combine original mask with inverted floodfilled image
-    filled_mask = cv2.bitwise_or(mask, inverted)
+    mask = (binary_mask > 0).astype(np.uint8) * 255
+    contours, hierarchy = cv2.findContours(mask, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours or hierarchy is None:
+        return mask
+
+    filled_mask = np.zeros_like(mask)
+    # Draw all top-level (external) contours filled
+    for i in range(len(contours)):
+        if hierarchy[0][i][3] == -1:  # No parent -> external contour
+            cv2.drawContours(filled_mask, contours, i, 255, -1)
+
     return filled_mask
+
 
 
 def filter_small_components(binary_mask: np.ndarray, min_area_px: int) -> np.ndarray:

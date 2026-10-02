@@ -23,6 +23,7 @@ from rich.table import Table
 
 from experiments.dataset_loader import (
     create_synthetic_benchmark_dataset,
+    load_evaluation_dataset,
     split_by_plant_id,
 )
 from experiments.run_benchmarks import export_latex_table, run_benchmark_suite
@@ -211,16 +212,38 @@ def camera_stream_cmd(camera_index: int, fps_limit: float, config_path: str):
 
 @cli.command("benchmark")
 @click.option("--data-dir", default=None, help="Optional image dataset directory")
+@click.option("--masks-dir", default=None, help="Optional masks dataset directory")
 @click.option("--config", default="configs/default_config.yaml", help="Configuration file")
-@click.option("--export-latex", default="data/benchmark_results/table.tex", help="LaTeX output path")
-@click.option("--export-csv", default="data/benchmark_results/summary.csv", help="CSV output path")
-def benchmark_cmd(data_dir: Optional[str], config: str, export_latex: str, export_csv: str):
+@click.option("--export-latex", default="results/table1_real_benchmarks.tex", help="LaTeX output path")
+@click.option("--export-csv", default="results/benchmark_summary.csv", help="CSV output path")
+def benchmark_cmd(data_dir: Optional[str], masks_dir: Optional[str], config: str, export_latex: str, export_csv: str):
     """Run full comparative benchmark vs Baselines and export LaTeX tables."""
     console.print(Panel.fit("[bold green]FieldSight-Lite: Comparative Benchmark Suite[/bold green]"))
 
-    dataset = create_synthetic_benchmark_dataset(num_plants=8, leaves_per_plant=4, seed=42)
-    _, _, test_set = split_by_plant_id(dataset, train_ratio=0.5, val_ratio=0.2, seed=42)
-    console.print(f"Evaluating [bold cyan]{len(test_set)}[/bold cyan] test leaves across 5 lighting regimes...")
+    eval_images_dir = data_dir if data_dir else "data/evaluation/images"
+    eval_masks_dir = masks_dir if masks_dir else "data/evaluation/masks"
+
+    # Check if real evaluation pairs exist
+    real_samples = []
+    if os.path.exists(eval_images_dir):
+        real_samples = load_evaluation_dataset(images_dir=eval_images_dir, masks_dir=eval_masks_dir)
+
+    annotated_samples = [s for s in real_samples if s.gt_lesion_mask is not None]
+
+    if annotated_samples:
+        console.print(f"Loaded [bold cyan]{len(annotated_samples)}[/bold cyan] real annotated image/mask pairs from '{eval_images_dir}'...")
+        test_set = annotated_samples
+    elif real_samples:
+        console.print(f"[yellow]Found {len(real_samples)} real images in '{eval_images_dir}', but no masks found in '{eval_masks_dir}'.[/yellow]")
+        console.print("[dim]Using synthetic cohort with ground-truth for benchmark metrics until annotations are completed...[/dim]")
+        dataset = create_synthetic_benchmark_dataset(num_plants=8, leaves_per_plant=4, seed=42)
+        _, _, test_set = split_by_plant_id(dataset, train_ratio=0.5, val_ratio=0.2, seed=42)
+    else:
+        console.print("No real evaluation images found. Generating synthetic benchmark cohort with strict Plant-ID separation...")
+        dataset = create_synthetic_benchmark_dataset(num_plants=8, leaves_per_plant=4, seed=42)
+        _, _, test_set = split_by_plant_id(dataset, train_ratio=0.5, val_ratio=0.2, seed=42)
+
+    console.print(f"Evaluating [bold cyan]{len(test_set)}[/bold cyan] test leaves across clean and 5 perturbed lighting regimes...")
 
     pipeline = FieldSightPipeline(config)
     df = run_benchmark_suite(test_set, pipeline)
@@ -232,6 +255,7 @@ def benchmark_cmd(data_dir: Optional[str], config: str, export_latex: str, expor
     df.to_csv(export_csv, index=False)
     console.print(f"\n[green]✓ Saved CSV summary to:[/green] {export_csv}")
 
+    os.makedirs(os.path.dirname(os.path.abspath(export_latex)), exist_ok=True)
     export_latex_table(df, export_latex)
     console.print(f"[green]✓ Saved LaTeX publication table to:[/green] {export_latex}")
 
